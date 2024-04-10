@@ -8,4 +8,4 @@ RUN go build -o app ./banner_service
 
 EXPOSE 8080
 
-CMD ["./app"]
+CMD ["sh", "-c", "sleep 5 && ./app"]

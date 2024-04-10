@@ -1,6 +1,8 @@
-db = db.getSiblingDB("mydatabase");
+const env = require('./db/mongo/load_env.js');
 
-db.createCollection("banner_data", {
+db = db.getSiblingDB(env.MONGO_DB);
+
+db.createCollection(env.MONGO_COLLECTION, {
     validator: {
         $jsonSchema: {
             bsonType: "object",

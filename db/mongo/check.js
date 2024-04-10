@@ -1,4 +1,6 @@
-db = db.getSiblingDB("mydatabase");
+const env = require('./db/mongo/load_env.js');
 
-const result = db.banner_data.find();
+db = db.getSiblingDB(env.MONGO_DB);
+
+const result = db[env.MONGO_COLLECTION].find();
 printjson(result);
