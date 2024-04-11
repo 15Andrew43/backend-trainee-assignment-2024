@@ -20,6 +20,31 @@ func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
 			`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
 }
 
+func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner, error) {
+	rows, err := PgConn.Query(context.Background(), `
+				SELECT b.id, b.data_id, b.is_active
+				FROM banners b
+				INNER JOIN banner_tags bt ON b.id = bt.banner_id
+				WHERE ($1 = -1 or b.feature_id = $1) AND ($2 = -1 OR bt.tag_id = $2)
+				LIMIT $3
+				OFFSET $4
+			`, featureID, tagID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var banners []model.Banner
+	for rows.Next() {
+		var banner model.Banner
+		if err := rows.Scan(&banner.ID, &banner.DataID, &banner.IsActive); err != nil {
+			return nil, err
+		}
+		banners = append(banners, banner)
+	}
+	return banners, nil
+}
+
 func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) error {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)

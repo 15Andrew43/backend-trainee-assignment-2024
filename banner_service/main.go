@@ -34,7 +34,8 @@ func main() {
 		r.Use(middlewares.AuthMiddleware)
 
 		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Query: []string{"tag_id", "feature_id"}, Header: []string{"token"}})).Get("/user_banner", handlers.GetUserBanner)
-		// r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Query: []string{"tag_id", "feature_id"}, Header: []string{"token"}})).Get("/user_banner", handlers.GetUserBanner)
+
+		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Header: []string{"token"}})).Get("/banner", handlers.GetAllBanners)
 	})
 
 	log.Println("Server is listening on port 8080...")
