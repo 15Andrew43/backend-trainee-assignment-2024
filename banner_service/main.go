@@ -2,16 +2,47 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"time"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/joho/godotenv"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type Banner struct {
+	ID       int    `json:"id"`
+	DataID   string `json:"data_id"`
+	IsActive bool   `json:"is_active"`
+}
+
+type BannerData struct {
+	ID      int    `json:"id"`
+	Content string `json:"content"`
+}
+
 var db *pgx.Conn
+var dbMongo *mongo.Client
+
+var (
+	pgHost     string
+	pgPort     int
+	pgUser     string
+	pgPassword string
+	pgDB       string
+
+	mongoHost       string
+	mongoPort       int
+	mongoDB         string
+	mongoCollection string
+)
 
 func main() {
 
@@ -27,54 +58,85 @@ func main() {
 	pgPassword := os.Getenv("POSTGRES_PASSWORD")
 	pgDB := os.Getenv("POSTGRES_DB")
 
+	mongoHost = os.Getenv("MONGO_CONTAINER_NAME")
+	mongoPort := os.Getenv("MONGO_PORT")
+	mongoDB = os.Getenv("MONGO_DB")
+	mongoCollection = os.Getenv("MONGO_COLLECTION")
+
 	pgConnString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pgUser, pgPassword, pgHost, pgPort, pgDB)
 	conn, err := pgx.Connect(context.Background(), pgConnString)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		log.Printf("ошибка подключения к Postgres: %v", err)
 		os.Exit(1)
 	}
 	defer conn.Close(context.Background())
 	db = conn
 
-	http.HandleFunc("/", handleRequest)
+	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%s", mongoHost, mongoPort))
+	client, err := mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		log.Printf("ошибка подключения к MongoDB: %v", err)
+		os.Exit(1)
+	}
+	defer client.Disconnect(context.Background())
+	dbMongo = client
+
+	http.HandleFunc("/", getUserBanner)
 
 	fmt.Println("Server is listening on port 8080...")
 	http.ListenAndServe(":8080", nil)
 }
 
-func handleRequest(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.Query(context.Background(), `
-		SELECT b.data_id, b.feature_id, bt.tag_id, b.is_active, b.created_at, b.updated_at
+func getUserBanner(w http.ResponseWriter, r *http.Request) {
+	// postgres
+	tagID, _ := strconv.Atoi(r.URL.Query().Get("tag_id"))
+	featureID, _ := strconv.Atoi(r.URL.Query().Get("feature_id"))
+
+	var banner Banner
+	err := db.QueryRow(context.Background(), `
+		SELECT b.id, b.data_id, b.is_active
 		FROM banners b
 		INNER JOIN banner_tags bt ON b.id = bt.banner_id
-	`)
+		WHERE b.feature_id = $1 AND bt.tag_id = $2
+	`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error querying database: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	fmt.Fprintf(w, "| %10s | %10s | %10s | %10s | %30s | %30s |\n", "Data ID", "Feature ID", "Tag ID", "Is Active", "Created At", "Updated At")
-	fmt.Fprintf(w, "|%s|\n", "------------+------------+------------+------------+------------------------------+------------------------------")
-	for rows.Next() {
-		var dataID string
-		var featureID int64
-		var tagID int64
-		var isActive bool
-		var createdAt time.Time
-		var updatedAt time.Time
-
-		err := rows.Scan(&dataID, &featureID, &tagID, &isActive, &createdAt, &updatedAt)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Error scanning row: %v", err), http.StatusInternalServerError)
+		if err == pgx.ErrNoRows {
+			log.Printf("no rows with tag_id = %d and feature_id = %d", tagID, featureID)
+			http.Error(w, "Баннер для не найден", http.StatusNotFound)
 			return
 		}
-
-		fmt.Fprintf(w, "| %10s | %10d | %10d | %10t | %30s | %30s |\n", dataID, featureID, tagID, isActive, createdAt.Format(time.RFC3339), updatedAt.Format(time.RFC3339))
-	}
-
-	if err := rows.Err(); err != nil {
-		http.Error(w, fmt.Sprintf("Error iterating over rows: %v", err), http.StatusInternalServerError)
+		log.Printf("ошибка при выполнении запроса к Postgres: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
 	}
+
+	// mongo
+	var bannerData BannerData
+	collection := dbMongo.Database(mongoDB).Collection(mongoCollection)
+
+	////       TODO: strnig -> int        //////////////////////////////////////////////////////////////////////////
+	dataID, err := strconv.Atoi(banner.DataID)
+	if err != nil {
+		log.Printf("ошибка преобразования строки в число: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	filter := bson.M{"id": dataID}
+	err = collection.FindOne(context.Background(), filter).Decode(&bannerData)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			log.Printf("не найдено документов с data_id = %v", banner.DataID)
+			http.Error(w, "Баннер не найден", http.StatusNotFound)
+			return
+		}
+		log.Printf("ошибка при выполнении запроса к MongoDB: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(bannerData)
 }
+
+// middleware : token chech -> validate input data
