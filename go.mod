@@ -3,6 +3,7 @@ module github.com/15Andrew43/backend-trainee-assignment-2024
 go 1.22
 
 require (
+	github.com/go-chi/chi/v5 v5.0.12 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect

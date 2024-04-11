@@ -1,5 +1,3 @@
-// В файле main.go
-
 package main
 
 import (
@@ -10,6 +8,8 @@ import (
 	"github.com/15Andrew43/backend-trainee-assignment-2024/config"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/handlers"
+	"github.com/15Andrew43/backend-trainee-assignment-2024/middlewares"
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
@@ -28,8 +28,18 @@ func main() {
 	}
 	defer database.MongoCli.Disconnect(context.Background())
 
-	http.HandleFunc("/", handlers.GetUserBanner)
+	r := chi.NewRouter()
+
+	r.Group(func(r chi.Router) {
+		r.Use(middlewares.AuthMiddleware)
+
+		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Query: []string{"tag_id", "feature_id"}, Header: []string{"token"}})).Get("/user_banner", handlers.GetUserBanner)
+		// r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Query: []string{"tag_id", "feature_id"}, Header: []string{"token"}})).Get("/user_banner", handlers.GetUserBanner)
+	})
 
 	log.Println("Server is listening on port 8080...")
-	http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(":8080", r)
+	if err != nil {
+		log.Fatal("Ошибка во время запуска сервера: %v", err)
+	}
 }
