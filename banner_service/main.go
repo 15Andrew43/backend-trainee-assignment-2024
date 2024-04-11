@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -66,25 +67,53 @@ func main() {
 	pgConnString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", pgUser, pgPassword, pgHost, pgPort, pgDB)
 	conn, err := pgx.Connect(context.Background(), pgConnString)
 	if err != nil {
-		log.Printf("ошибка подключения к Postgres: %v", err)
-		os.Exit(1)
+		log.Fatal("ошибка подключения к Postgres: %v", err)
 	}
 	defer conn.Close(context.Background())
 	db = conn
+	if err := db.PgConn().Ping(context.Background()); err != nil {
+		log.Fatal(err)
+	}
 
 	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%s", mongoHost, mongoPort))
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		log.Printf("ошибка подключения к MongoDB: %v", err)
-		os.Exit(1)
+		log.Fatal("ошибка подключения к MongoDB: %v", err)
 	}
 	defer client.Disconnect(context.Background())
 	dbMongo = client
+	if err := dbMongo.Ping(context.Background(), nil); err != nil {
+		log.Fatal(err)
+	}
 
 	http.HandleFunc("/", getUserBanner)
 
 	fmt.Println("Server is listening on port 8080...")
 	http.ListenAndServe(":8080", nil)
+}
+
+func getPostgresBanner(tagID, featureID int, banner *Banner) error {
+	err := db.QueryRow(context.Background(), `
+	SELECT b.id, b.data_id, b.is_active
+	FROM banners b
+	INNER JOIN banner_tags bt ON b.id = bt.banner_id
+	WHERE b.feature_id = $1 AND bt.tag_id = $2
+`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
+	return err
+}
+
+func getMongoBannerData(bannerData *BannerData, banner *Banner) error {
+	collection := dbMongo.Database(mongoDB).Collection(mongoCollection)
+
+	////       TODO: strnig -> int        //////////////////////////////////////////////////////////////////////////
+	dataID, err := strconv.Atoi(banner.DataID)
+	if err != nil {
+		log.Printf("ошибка преобразования строки в число: %v", err)
+		return errors.New("can not convert str to int")
+	}
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	filter := bson.M{"id": dataID}
+	return collection.FindOne(context.Background(), filter).Decode(&bannerData)
 }
 
 func getUserBanner(w http.ResponseWriter, r *http.Request) {
@@ -93,12 +122,7 @@ func getUserBanner(w http.ResponseWriter, r *http.Request) {
 	featureID, _ := strconv.Atoi(r.URL.Query().Get("feature_id"))
 
 	var banner Banner
-	err := db.QueryRow(context.Background(), `
-		SELECT b.id, b.data_id, b.is_active
-		FROM banners b
-		INNER JOIN banner_tags bt ON b.id = bt.banner_id
-		WHERE b.feature_id = $1 AND bt.tag_id = $2
-	`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
+	err := getPostgresBanner(tagID, featureID, &banner)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			log.Printf("no rows with tag_id = %d and feature_id = %d", tagID, featureID)
@@ -112,18 +136,7 @@ func getUserBanner(w http.ResponseWriter, r *http.Request) {
 
 	// mongo
 	var bannerData BannerData
-	collection := dbMongo.Database(mongoDB).Collection(mongoCollection)
-
-	////       TODO: strnig -> int        //////////////////////////////////////////////////////////////////////////
-	dataID, err := strconv.Atoi(banner.DataID)
-	if err != nil {
-		log.Printf("ошибка преобразования строки в число: %v", err)
-		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
-		return
-	}
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	filter := bson.M{"id": dataID}
-	err = collection.FindOne(context.Background(), filter).Decode(&bannerData)
+	err = getMongoBannerData(&bannerData, &banner)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			log.Printf("не найдено документов с data_id = %v", banner.DataID)
