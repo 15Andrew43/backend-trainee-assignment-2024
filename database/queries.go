@@ -8,8 +8,11 @@ import (
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/config"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
+	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
+
+var UnsuccessfulInsert = errors.New("Unsuccessful Insert into Postgres")
 
 func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
 	return PgConn.QueryRow(context.Background(), `
@@ -45,6 +48,39 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 	return banners, nil
 }
 
+func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
+	nextId := util.GenerateNextId()
+	var insertedID int
+
+	log.Println("olololoolololololool")
+
+	res, err := PgConn.Exec(context.Background(), `
+					INSERT INTO banners (feature_id, data_id, is_active)
+					VALUES ($1, $2, $3)
+					RETURNING id;
+				`, requestBody.FeatureId, strconv.Itoa(nextId), requestBody.IsActive)
+	//.Scan(&insertedID)
+	log.Printf("res = %+v\n\n\n", res)
+	if err != nil {
+		return 0, err
+	}
+	log.Println("qqwqwqwqwqwqwqqwqwqw")
+
+	log.Println("kekekekekekekeke")
+
+	for _, tag := range requestBody.TagIds {
+		err = PgConn.QueryRow(context.Background(), `
+					INSERT INTO banner_tags (banner_id, tag_id)
+					VALUES ($1, $2);
+				`, insertedID, tag).Scan(&insertedID)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return nextId, nil
+}
+
 func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) error {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
@@ -58,4 +94,19 @@ func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) erro
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	filter := bson.M{"id": dataID}
 	return collection.FindOne(context.Background(), filter).Decode(&bannerData)
+}
+
+func CreateMongoBanner(nextId int, content string) error {
+
+	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
+
+	_, err := collection.InsertOne(context.Background(), map[string]interface{}{
+		"id":      nextId,
+		"content": content,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

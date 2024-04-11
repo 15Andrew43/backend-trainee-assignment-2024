@@ -14,8 +14,6 @@ import (
 )
 
 func GetUserBanner(w http.ResponseWriter, r *http.Request) {
-	log.Println("kekekekekekekeke")
-
 	// postgres
 	tagID, _ := strconv.Atoi(r.URL.Query().Get("tag_id"))
 	featureID, _ := strconv.Atoi(r.URL.Query().Get("feature_id"))
@@ -53,7 +51,6 @@ func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 
 func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 	// postgres
-	log.Println("qwertyqwertyqwert")
 	tagID := -1
 	if tagStr := r.URL.Query().Get("tag_id"); tagStr != "" {
 		var error error
@@ -130,4 +127,32 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bannerDatas)
+}
+
+func CreateBanner(w http.ResponseWriter, r *http.Request) {
+
+	// add tags
+	// add features
+	// add banner
+
+	requestBody, ok := r.Context().Value("requestBody").(model.RequestBodyBanner)
+	if !ok {
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	nextId, err := database.CreatePostgresBanner(&requestBody)
+	if err != nil {
+		log.Printf("Ошибка при вставке данных в Postgres: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
+		return
+	}
+
+	err = database.CreateMongoBanner(nextId, requestBody.Content)
+	if err != nil {
+		log.Printf("Ошибка при вставке данных в Mongo: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
+		return
+	}
+
 }

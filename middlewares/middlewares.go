@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/fakes"
+	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
 )
 
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -50,19 +52,64 @@ func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handl
 				}
 			}
 			if len(needParams.Data) > 0 {
-				var _, bodyParams map[string]interface{}
-				err := json.NewDecoder(r.Body).Decode(&bodyParams)
+				body := map[string]interface{}{}
+				err := json.NewDecoder(r.Body).Decode(&body)
 				if err != nil {
 					http.Error(w, "Ошибка при чтении JSON-тела запроса", http.StatusBadRequest)
 					return
 				}
+				log.Printf("body = %+v\n\n\n\n\n", body)
+				log.Printf("type of featureId = %T\n\n", body["feature_id"])
+				log.Printf("type of tags = %T\n\n", body["tag_ids"])
+
+				var requestBody model.RequestBodyBanner
+				for key, value := range body {
+					switch key {
+					case "tag_ids":
+						var tagIDs []int
+						for _, tagID := range value.([]interface{}) {
+							tag, ok := tagID.(float64)
+							if !ok {
+								http.Error(w, "Некорректные данные для tag_ids", http.StatusBadRequest)
+								return
+							}
+							tagIDs = append(tagIDs, int(tag))
+						}
+						requestBody.TagIds = tagIDs
+					case "feature_id":
+						featureID, ok := value.(float64)
+						if !ok {
+							http.Error(w, "Некорректные данные для feature_id", http.StatusBadRequest)
+							return
+						}
+						requestBody.FeatureId = int(featureID)
+					case "content":
+						content, ok := value.(string)
+						if !ok {
+							http.Error(w, "Некорректные данные для content", http.StatusBadRequest)
+							return
+						}
+						requestBody.Content = content
+					case "is_active":
+						isActive, ok := value.(bool)
+						if !ok {
+							http.Error(w, "Некорректные данные для is_active", http.StatusBadRequest)
+							return
+						}
+						requestBody.IsActive = isActive
+					}
+				}
+
+				log.Printf("body = %+v\n\n\n\n\n", requestBody)
 
 				for _, param := range needParams.Data {
-					if _, ok := bodyParams[param]; !ok {
-						http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в параметрах пути", param), http.StatusBadRequest)
+					_, ok := body[param]
+					if !ok {
+						http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в теле запроса", param), http.StatusBadRequest)
 						return
 					}
 				}
+				r = r.WithContext(context.WithValue(r.Context(), "requestBody", requestBody))
 			}
 			next.ServeHTTP(w, r)
 		})
