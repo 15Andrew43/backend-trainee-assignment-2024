@@ -37,7 +37,6 @@ func main() {
 		fmt.Println("here ", id)
 	})
 
-	// Define middleware-wrapped handler functions
 	userBannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
 		Query:  []string{"tag_id", "feature_id"},
 		Header: []string{"token"},
@@ -58,11 +57,16 @@ func main() {
 		Data:     []string{"tag_ids", "feature_id", "content", "is_active"},
 	})(http.HandlerFunc(handlers.UpdateBanner))
 
-	// Attach handlers to routes
+	deleteBannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
+		URLParam: []string{"id"},
+		Header:   []string{"token"},
+	})(http.HandlerFunc(handlers.DeleteBanner))
+
 	r.Handle("/user_banner", userBannerHandler).Methods("GET")
 	r.Handle("/banner", bannerHandler).Methods("GET")
 	r.Handle("/banner", createBannerHandler).Methods("POST")
 	r.Handle("/banner/{id}", updateBannerHandler).Methods("PATCH")
+	r.Handle("/banner/{id}", deleteBannerHandler).Methods("DELETE")
 
 	log.Println("Server is listening on port 8080...")
 	err = http.ListenAndServe(":8080", r)

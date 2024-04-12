@@ -198,3 +198,27 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+func DeleteBanner(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		log.Printf("Ошибка при ковертации строки %s в число", vars["id"])
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	dataId, err := database.DeletePostgresBanner(id)
+	if err != nil {
+		log.Printf("Ошибка при обновлении данных в Postgres: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
+		return
+	}
+
+	err = database.DeleteMongoBanner(dataId)
+	if err != nil {
+		log.Printf("Ошибка при обновлении данных в Mongo: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
+		return
+	}
+}

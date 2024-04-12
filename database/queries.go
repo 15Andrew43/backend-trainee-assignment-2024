@@ -12,7 +12,6 @@ import (
 	my_errors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
@@ -139,29 +138,42 @@ func UpgradePostgresBanner(id int, requestBody *model.RequestBodyBanner) (int, e
 	return dataId, nil
 }
 
-func DeletePostgresBanner() {
+func DeletePostgresBanner(id int) (int, error) {
+	var dataIdStr string
+	err := PgConn.QueryRow(context.Background(), `
+					SELECT data_id
+					FROM banners
+					WHERE id = $1
+				`, id).Scan(&dataIdStr)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("Получен data_id обновляемого баннера %v", id)
 
-	// var tmp int
-	// err = PgConn.QueryRow(context.Background(), `
-	// 				DELETE
-	// 				FROM banners
-	// 				WHERE id = $1;
-	// 			`, id).Scan(&tmp)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// log.Printf("При обновлении удалена строка %v из таблицы banners", id)
+	dataId, err := strconv.Atoi(dataIdStr)
+	if err != nil {
+		return 0, err
+	}
 
-	// err = PgConn.QueryRow(context.Background(), `
-	// 				DELETE
-	// 				FROM banner_tags
-	// 				WHERE banner_id = $1;
-	// 			`, id).Scan(&tmp)
-	// if err != nil {
-	// 	return 0, err
-	// }
-	// log.Printf("При обновлении удалены строки из таблицы banner_tags")
+	_, err = PgConn.Exec(context.Background(), `
+					DELETE FROM banner_tags
+					WHERE banner_id = $1
+				`, id)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("Удалены строки из таблицы banner_tags для баннера %v", id)
 
+	_, err = PgConn.Exec(context.Background(), `
+					DELETE FROM banners
+					WHERE id = $1
+				`, id)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("Удалена строка %v из таблицы banners", id)
+
+	return dataId, nil
 }
 
 func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) error {
@@ -197,11 +209,27 @@ func CreateMongoBanner(nextId int, content map[string]interface{}) error {
 func UpgradeMongoBanner(dataId int, content map[string]interface{}) error {
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
-	_, err := collection.ReplaceOne(
+	filter := bson.M{"id": dataId}
+	update := bson.M{"$set": bson.M{"content": content}}
+
+	_, err := collection.UpdateOne(
+		context.Background(),
+		filter,
+		update,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func DeleteMongoBanner(dataId int) error {
+	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
+
+	_, err := collection.DeleteOne(
 		context.Background(),
 		bson.M{"id": dataId},
-		content,
-		options.Replace().SetUpsert(true),
 	)
 	if err != nil {
 		return err

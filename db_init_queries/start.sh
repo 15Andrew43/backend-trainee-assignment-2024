@@ -5,6 +5,7 @@
 source .env
 
 # postgres
+export PGPASSWORD=$POSTGRES_PASSWORD
 echo "CREATING TABLES IN POSTGRES"
 psql -h localhost -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -a -f db_init_queries/postgres/create_tables.sql
 echo "INSERTING TEST DATA IN POSTGRES"
