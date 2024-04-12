@@ -58,9 +58,6 @@ func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handl
 					http.Error(w, "Ошибка при чтении JSON-тела запроса", http.StatusBadRequest)
 					return
 				}
-				log.Printf("body = %+v\n\n\n\n\n", body)
-				log.Printf("type of featureId = %T\n\n", body["feature_id"])
-				log.Printf("type of tags = %T\n\n", body["tag_ids"])
 
 				var requestBody model.RequestBodyBanner
 				for key, value := range body {
@@ -108,8 +105,6 @@ func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handl
 						requestBody.IsActive = isActive
 					}
 				}
-
-				log.Printf("body = %+v\n\n\n\n\n", requestBody)
 
 				for _, param := range needParams.Data {
 					_, ok := body[param]

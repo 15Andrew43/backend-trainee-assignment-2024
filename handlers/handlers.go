@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
+	myerrors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -131,10 +133,6 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 
 func CreateBanner(w http.ResponseWriter, r *http.Request) {
 
-	// add tags
-	// add features
-	// add banner
-
 	requestBody, ok := r.Context().Value("requestBody").(model.RequestBodyBanner)
 	if !ok {
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -143,6 +141,12 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 
 	nextId, err := database.CreatePostgresBanner(&requestBody)
 	if err != nil {
+		var bannerExistErr *myerrors.BannerExist
+		if errors.As(err, &bannerExistErr) {
+			log.Printf("Ошибка при вставке данных в Postgres: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		log.Printf("Ошибка при вставке данных в Postgres: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
 		return
@@ -155,4 +159,5 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusCreated)
 }

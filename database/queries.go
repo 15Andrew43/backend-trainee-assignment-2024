@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"strings"
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/config"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
+	my_errors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -47,6 +49,19 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 }
 
 func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
+
+	// check that banners with such feature + tag ddo not exist
+	for _, tag := range requestBody.TagIds {
+		var banner model.Banner
+		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
+		if err != nil {
+			if strings.Contains(err.Error(), "no rows in result set") {
+				continue
+			}
+		}
+		return 0, &my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+	}
+
 	nextId := util.GenerateNextId()
 	var insertedID int
 	err := PgConn.QueryRow(context.Background(), `
