@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/handlers"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/middlewares"
-	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -28,21 +29,44 @@ func main() {
 	}
 	defer database.MongoCli.Disconnect(context.Background())
 
-	r := chi.NewRouter()
+	r := mux.NewRouter()
 
-	r.Group(func(r chi.Router) {
-		r.Use(middlewares.AuthMiddleware)
-
-		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Query: []string{"tag_id", "feature_id"}, Header: []string{"token"}})).Get("/user_banner", handlers.GetUserBanner)
-
-		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Header: []string{"token"}})).Get("/banner", handlers.GetAllBanners)
-
-		r.With(middlewares.CheckParamsMiddleware(middlewares.Params{Header: []string{"token"}, Data: []string{"tag_ids", "feature_id", "content", "is_active"}})).Post("/banner", handlers.CreateBanner)
+	r.HandleFunc("/latest/{id}", func(rw http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["id"]
+		fmt.Println("here ", id)
 	})
+
+	// Define middleware-wrapped handler functions
+	userBannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
+		Query:  []string{"tag_id", "feature_id"},
+		Header: []string{"token"},
+	})(http.HandlerFunc(handlers.GetUserBanner))
+
+	bannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
+		Header: []string{"token"},
+	})(http.HandlerFunc(handlers.GetAllBanners))
+
+	createBannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
+		Header: []string{"token"},
+		Data:   []string{"tag_ids", "feature_id", "content", "is_active"},
+	})(http.HandlerFunc(handlers.CreateBanner))
+
+	updateBannerHandler := middlewares.CheckParamsMiddleware(middlewares.Params{
+		URLParam: []string{"id"},
+		Header:   []string{"token"},
+		Data:     []string{"tag_ids", "feature_id", "content", "is_active"},
+	})(http.HandlerFunc(handlers.UpdateBanner))
+
+	// Attach handlers to routes
+	r.Handle("/user_banner", userBannerHandler).Methods("GET")
+	r.Handle("/banner", bannerHandler).Methods("GET")
+	r.Handle("/banner", createBannerHandler).Methods("POST")
+	r.Handle("/banner/{id}", updateBannerHandler).Methods("PATCH")
 
 	log.Println("Server is listening on port 8080...")
 	err = http.ListenAndServe(":8080", r)
 	if err != nil {
-		log.Fatal("Ошибка во время запуска сервера: %v", err)
+		log.Fatal("Ошибка во время запуска сервера: ", err)
 	}
 }

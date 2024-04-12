@@ -11,6 +11,7 @@ import (
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
 	myerrors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
+	"github.com/gorilla/mux"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -160,4 +161,40 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func UpdateBanner(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		log.Printf("Ошибка при ковертации строки %s в число", vars["id"])
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	requestBody, ok := r.Context().Value("requestBody").(model.RequestBodyBanner)
+	if !ok {
+		log.Printf("heer is DEBUGGING")
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	dataId, err := database.UpgradePostgresBanner(id, &requestBody)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows in result set") {
+			log.Printf("Не найдено строк с banner_id = %d", id)
+			http.Error(w, "Баннер не найден в Postgres при обновлении", http.StatusNotFound)
+			return
+		}
+		log.Printf("Ошибка при обновлении данных в Postgres: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
+		return
+	}
+
+	err = database.UpgradeMongoBanner(dataId, requestBody.Content)
+	if err != nil {
+		log.Printf("Ошибка при обновлении данных в Mongo: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
+		return
+	}
 }

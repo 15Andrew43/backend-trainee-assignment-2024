@@ -12,6 +12,7 @@ import (
 	my_errors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
@@ -50,7 +51,7 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 
 func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
 
-	// check that banners with such feature + tag ddo not exist
+	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
 		var banner model.Banner
 		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
@@ -74,8 +75,7 @@ func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
 	}
 	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
 
-	for ind, tag := range requestBody.TagIds {
-		log.Printf("ind = ", ind)
+	for _, tag := range requestBody.TagIds {
 		_, err = PgConn.Exec(context.Background(), `
 					INSERT INTO banner_tags (banner_id, tag_id)
 					VALUES ($1, $2);
@@ -87,6 +87,81 @@ func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
 	log.Printf("Вставлены новые строки в таблицу banner_tags")
 
 	return nextId, nil
+}
+
+func UpgradePostgresBanner(id int, requestBody *model.RequestBodyBanner) (int, error) {
+	var dataIdStr string
+	err := PgConn.QueryRow(context.Background(), `
+					SELECT data_id
+					FROM banners
+					WHERE id = $1
+				`, id).Scan(&dataIdStr)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("Получен data_id обновляемого баннера %v", id)
+
+	dataId, err := strconv.Atoi(dataIdStr)
+	if err != nil {
+		return 0, err
+	}
+
+	_, err = PgConn.Exec(context.Background(), `
+					UPDATE banners
+					SET feature_id = $2, is_active = $3, updated_at = NOW()
+					WHERE id = $1;
+				`, id, requestBody.FeatureId, requestBody.IsActive)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("Произведено обновление содержимого баннера в таблице banners")
+
+	_, err = PgConn.Exec(context.Background(), `
+					DELETE FROM banner_tags
+					WHERE banner_id = $1;
+				`, id)
+	if err != nil {
+		return 0, err
+	}
+	log.Printf("При обновлении удалены строки из таблицы banner_tags")
+
+	for _, tag := range requestBody.TagIds {
+		_, err = PgConn.Exec(context.Background(), `
+			INSERT INTO banner_tags (banner_id, tag_id)
+			VALUES ($1, $2);
+		`, id, tag)
+		if err != nil {
+			return 0, err
+		}
+	}
+	log.Printf("Вставлены новые строки в таблицу banner_tags")
+
+	return dataId, nil
+}
+
+func DeletePostgresBanner() {
+
+	// var tmp int
+	// err = PgConn.QueryRow(context.Background(), `
+	// 				DELETE
+	// 				FROM banners
+	// 				WHERE id = $1;
+	// 			`, id).Scan(&tmp)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// log.Printf("При обновлении удалена строка %v из таблицы banners", id)
+
+	// err = PgConn.QueryRow(context.Background(), `
+	// 				DELETE
+	// 				FROM banner_tags
+	// 				WHERE banner_id = $1;
+	// 			`, id).Scan(&tmp)
+	// if err != nil {
+	// 	return 0, err
+	// }
+	// log.Printf("При обновлении удалены строки из таблицы banner_tags")
+
 }
 
 func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) error {
@@ -112,6 +187,22 @@ func CreateMongoBanner(nextId int, content map[string]interface{}) error {
 		"id":      nextId,
 		"content": content,
 	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpgradeMongoBanner(dataId int, content map[string]interface{}) error {
+	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
+
+	_, err := collection.ReplaceOne(
+		context.Background(),
+		bson.M{"id": dataId},
+		content,
+		options.Replace().SetUpsert(true),
+	)
 	if err != nil {
 		return err
 	}

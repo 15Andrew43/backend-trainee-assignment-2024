@@ -9,10 +9,12 @@ import (
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/fakes"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
+	"github.com/gorilla/mux"
 )
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// log.Printf("--------------------- id = %v", chi.URLParam(r, "id"))
 		token := r.Header.Get("token")
 
 		if token == "" {
@@ -31,23 +33,32 @@ func AuthMiddleware(next http.Handler) http.Handler {
 }
 
 type Params struct {
-	Query  []string
-	Header []string
-	Data   []string
+	Query    []string
+	URLParam []string
+	Header   []string
+	Data     []string
 }
 
 func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// log.Printf("path id = %v", chi.URLParam(r, "id")) // всегда выводуит пустую строку! :(
 			for _, param := range needParams.Query {
 				if r.URL.Query().Get(param) == "" {
+					http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в параметрах запроса", param), http.StatusBadRequest)
+					return
+				}
+			}
+			for _, param := range needParams.URLParam {
+				vars := mux.Vars(r)
+				if _, ok := vars[param]; !ok {
 					http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в параметрах пути", param), http.StatusBadRequest)
 					return
 				}
 			}
 			for _, param := range needParams.Header {
 				if r.Header.Get(param) == "" {
-					http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в параметрах пути", param), http.StatusBadRequest)
+					http.Error(w, fmt.Sprintf("Отсутствует обязательный параметр %v в заголовках", param), http.StatusBadRequest)
 					return
 				}
 			}
