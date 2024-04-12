@@ -12,8 +12,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-var UnsuccessfulInsert = errors.New("Unsuccessful Insert into Postgres")
-
 func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
 	return PgConn.QueryRow(context.Background(), `
 				SELECT b.id, b.data_id, b.is_active
@@ -25,7 +23,7 @@ func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
 
 func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner, error) {
 	rows, err := PgConn.Query(context.Background(), `
-				SELECT b.id, b.data_id, b.is_active
+				SELECT DISTINCT b.id, b.data_id, b.is_active
 				FROM banners b
 				INNER JOIN banner_tags bt ON b.id = bt.banner_id
 				WHERE ($1 = -1 or b.feature_id = $1) AND ($2 = -1 OR bt.tag_id = $2)
@@ -51,32 +49,27 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
 	nextId := util.GenerateNextId()
 	var insertedID int
-
-	log.Println("olololoolololololool")
-
-	res, err := PgConn.Exec(context.Background(), `
+	err := PgConn.QueryRow(context.Background(), `
 					INSERT INTO banners (feature_id, data_id, is_active)
 					VALUES ($1, $2, $3)
 					RETURNING id;
-				`, requestBody.FeatureId, strconv.Itoa(nextId), requestBody.IsActive)
-	//.Scan(&insertedID)
-	log.Printf("res = %+v\n\n\n", res)
+				`, requestBody.FeatureId, strconv.Itoa(nextId), requestBody.IsActive).Scan(&insertedID)
 	if err != nil {
 		return 0, err
 	}
-	log.Println("qqwqwqwqwqwqwqqwqwqw")
+	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
 
-	log.Println("kekekekekekekeke")
-
-	for _, tag := range requestBody.TagIds {
-		err = PgConn.QueryRow(context.Background(), `
+	for ind, tag := range requestBody.TagIds {
+		log.Printf("ind = ", ind)
+		_, err = PgConn.Exec(context.Background(), `
 					INSERT INTO banner_tags (banner_id, tag_id)
 					VALUES ($1, $2);
-				`, insertedID, tag).Scan(&insertedID)
+				`, insertedID, tag)
 		if err != nil {
 			return 0, err
 		}
 	}
+	log.Printf("Вставлены новые строки в таблицу banner_tags")
 
 	return nextId, nil
 }

@@ -1,5 +1,39 @@
-INSERT INTO features (name) VALUES ('football'), ('basketball'), ('tennis');
-INSERT INTO tags (name) VALUES ('red'), ('blue'), ('green');
+INSERT INTO features (name) VALUES 
+('football'), 
+('basketball'), 
+('tennis'),
+('volleyball'), 
+('swimming'), 
+('hockey'), 
+('golf'), 
+('cricket'),
+('rugby'), 
+('cycling'), 
+('boxing'),
+('table tennis'), 
+('athletics'), 
+('badminton'),
+('skiing'), 
+('snowboarding'),
+('wrestling'), 
+('surfing'), 
+('climbing');
+INSERT INTO tags (name) VALUES 
+('red'), 
+('blue'), 
+('green'),
+('yellow'),
+('orange'),
+('purple'),
+('pink'),
+('brown'),
+('black'),
+('white'),
+('gray'),
+('cyan'),
+('magenta'),
+('turquoise'),
+('lime');
 INSERT INTO banners (feature_id, data_id, is_active) VALUES 
 (1, 101, true),
 (2, 102, false),
