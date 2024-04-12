@@ -17,30 +17,30 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-var UserBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+var UserBannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	Query:  []string{"tag_id", "feature_id"},
 	Header: []string{"token"},
-})(http.HandlerFunc(GetUserBanner))
+})(http.HandlerFunc(GetUserBanner)))
 
-var BannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+var BannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	Header: []string{"token"},
-})(http.HandlerFunc(GetAllBanners))
+})(http.HandlerFunc(GetAllBanners)))
 
-var CreateBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+var CreateBannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	Header: []string{"token"},
 	Data:   []string{"tag_ids", "feature_id", "content", "is_active"},
-})(http.HandlerFunc(CreateBanner))
+})(http.HandlerFunc(CreateBanner)))
 
-var UpdateBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+var UpdateBannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	URLParam: []string{"id"},
 	Header:   []string{"token"},
 	Data:     []string{"tag_ids", "feature_id", "content", "is_active"},
-})(http.HandlerFunc(UpdateBanner))
+})(http.HandlerFunc(UpdateBanner)))
 
-var DeleteBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+var DeleteBannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	URLParam: []string{"id"},
 	Header:   []string{"token"},
-})(http.HandlerFunc(DeleteBanner))
+})(http.HandlerFunc(DeleteBanner)))
 
 func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 	// postgres

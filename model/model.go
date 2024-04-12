@@ -14,3 +14,10 @@ type Banner struct {
 	Content   map[string]interface{} `json:"content"`
 	IsActive  bool                   `json:"is_active"`
 }
+
+type BannerRequest struct {
+	TagIds    []int  `json:"tag_ids"`
+	FeatureId int    `json:"feature_id"`
+	Content   string `json:"content"`
+	IsActive  bool   `json:"is_active"`
+}
