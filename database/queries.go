@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
+func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error {
 	return PgConn.QueryRow(context.Background(), `
 				SELECT b.id, b.data_id, b.is_active
 				FROM banners b
@@ -23,7 +23,7 @@ func GetPostgresBanner(tagID, featureID int, banner *model.Banner) error {
 			`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
 }
 
-func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner, error) {
+func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.PostgresBanner, error) {
 	rows, err := PgConn.Query(context.Background(), `
 				SELECT DISTINCT b.id, b.data_id, b.is_active
 				FROM banners b
@@ -37,9 +37,9 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 	}
 	defer rows.Close()
 
-	var banners []model.Banner
+	var banners []model.PostgresBanner
 	for rows.Next() {
-		var banner model.Banner
+		var banner model.PostgresBanner
 		if err := rows.Scan(&banner.ID, &banner.DataID, &banner.IsActive); err != nil {
 			return nil, err
 		}
@@ -48,11 +48,11 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Banner,
 	return banners, nil
 }
 
-func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
+func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
-		var banner model.Banner
+		var banner model.PostgresBanner
 		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
@@ -88,7 +88,7 @@ func CreatePostgresBanner(requestBody *model.RequestBodyBanner) (int, error) {
 	return nextId, nil
 }
 
-func UpgradePostgresBanner(id int, requestBody *model.RequestBodyBanner) (int, error) {
+func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 	var dataIdStr string
 	err := PgConn.QueryRow(context.Background(), `
 					SELECT data_id
@@ -176,7 +176,7 @@ func DeletePostgresBanner(id int) (int, error) {
 	return dataId, nil
 }
 
-func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) error {
+func GetMongoBannerData(bannerData *model.BannerData, banner *model.PostgresBanner) error {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 

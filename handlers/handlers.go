@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
+	"github.com/15Andrew43/backend-trainee-assignment-2024/middlewares"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
 	myerrors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
 	"github.com/gorilla/mux"
@@ -16,12 +17,37 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+var UserBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+	Query:  []string{"tag_id", "feature_id"},
+	Header: []string{"token"},
+})(http.HandlerFunc(GetUserBanner))
+
+var BannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+	Header: []string{"token"},
+})(http.HandlerFunc(GetAllBanners))
+
+var CreateBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+	Header: []string{"token"},
+	Data:   []string{"tag_ids", "feature_id", "content", "is_active"},
+})(http.HandlerFunc(CreateBanner))
+
+var UpdateBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+	URLParam: []string{"id"},
+	Header:   []string{"token"},
+	Data:     []string{"tag_ids", "feature_id", "content", "is_active"},
+})(http.HandlerFunc(UpdateBanner))
+
+var DeleteBannerHandler = middlewares.CheckParamsMiddleware(middlewares.Params{
+	URLParam: []string{"id"},
+	Header:   []string{"token"},
+})(http.HandlerFunc(DeleteBanner))
+
 func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 	// postgres
 	tagID, _ := strconv.Atoi(r.URL.Query().Get("tag_id"))
 	featureID, _ := strconv.Atoi(r.URL.Query().Get("feature_id"))
 
-	var banner model.Banner
+	var banner model.PostgresBanner
 	err := database.GetPostgresBanner(tagID, featureID, &banner)
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows in result set") {
@@ -134,7 +160,7 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 
 func CreateBanner(w http.ResponseWriter, r *http.Request) {
 
-	requestBody, ok := r.Context().Value("requestBody").(model.RequestBodyBanner)
+	requestBody, ok := r.Context().Value("requestBody").(model.Banner)
 	if !ok {
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
@@ -172,7 +198,7 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestBody, ok := r.Context().Value("requestBody").(model.RequestBodyBanner)
+	requestBody, ok := r.Context().Value("requestBody").(model.Banner)
 	if !ok {
 		log.Printf("heer is DEBUGGING")
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)

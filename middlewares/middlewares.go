@@ -70,7 +70,7 @@ func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handl
 					return
 				}
 
-				var requestBody model.RequestBodyBanner
+				var requestBody model.Banner
 				for key, value := range body {
 					switch key {
 					case "tag_ids":
