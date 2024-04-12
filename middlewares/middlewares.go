@@ -84,8 +84,17 @@ func CheckParamsMiddleware(needParams Params) func(next http.Handler) http.Handl
 						}
 						requestBody.FeatureId = int(featureID)
 					case "content":
-						content, ok := value.(string)
+						contentStr, ok := value.(string)
 						if !ok {
+							log.Printf("Ошибка во время value.(string)")
+							http.Error(w, "Некорректные данные для content", http.StatusBadRequest)
+							return
+						}
+
+						var content map[string]interface{}
+						err := json.Unmarshal([]byte(contentStr), &content)
+						if err != nil {
+							log.Printf("Ошибка во время Unmarshal: %v", err)
 							http.Error(w, "Некорректные данные для content", http.StatusBadRequest)
 							return
 						}

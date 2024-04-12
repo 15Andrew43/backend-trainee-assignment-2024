@@ -89,7 +89,7 @@ func GetMongoBannerData(bannerData *model.BannerData, banner *model.Banner) erro
 	return collection.FindOne(context.Background(), filter).Decode(&bannerData)
 }
 
-func CreateMongoBanner(nextId int, content string) error {
+func CreateMongoBanner(nextId int, content map[string]interface{}) error {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 

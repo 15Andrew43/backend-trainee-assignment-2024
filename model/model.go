@@ -6,14 +6,11 @@ type Banner struct {
 	IsActive bool   `json:"is_active"`
 }
 
-type BannerData struct {
-	ID      int    `json:"id"`
-	Content string `json:"content"`
-}
+type BannerData map[string]interface{}
 
 type RequestBodyBanner struct {
-	TagIds    []int  `json:"tag_ids"`
-	FeatureId int    `json:"feature_id"`
-	Content   string `json:"content"`
-	IsActive  bool   `json:"is_active"`
+	TagIds    []int                  `json:"tag_ids"`
+	FeatureId int                    `json:"feature_id"`
+	Content   map[string]interface{} `json:"content"`
+	IsActive  bool                   `json:"is_active"`
 }
