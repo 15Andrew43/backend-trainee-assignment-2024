@@ -24,6 +24,7 @@ func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error
 }
 
 func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.PostgresBanner, error) {
+	log.Printf("start selecting")
 	rows, err := PgConn.Query(context.Background(), `
 				SELECT DISTINCT b.id, b.data_id, b.is_active
 				FROM banners b
@@ -36,6 +37,7 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Postgre
 		return nil, err
 	}
 	defer rows.Close()
+	log.Print("end selecting")
 
 	var banners []model.PostgresBanner
 	for rows.Next() {
@@ -89,6 +91,22 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 }
 
 func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
+
+	// check that banners with such feature + tag do not exist
+	for _, tag := range requestBody.TagIds {
+		var banner model.PostgresBanner
+		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
+		if err != nil {
+			if strings.Contains(err.Error(), "no rows in result set") {
+				continue
+			}
+		}
+		if banner.ID == id {
+			continue
+		}
+		return 0, &my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+	}
+
 	var dataIdStr string
 	err := PgConn.QueryRow(context.Background(), `
 					SELECT data_id

@@ -123,8 +123,10 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	log.Printf("get all env vars")
 
 	banners, err := database.GetPostgresAllBanners(tagID, featureID, limit, offset)
+	log.Printf("GetPostgresAllBanners is done???")
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows in result set") {
 			log.Printf("Не найдено строк с tag_id = %d и feature_id = %d", tagID, featureID)
@@ -135,6 +137,7 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
 		return
 	}
+	log.Printf("GetPostgresAllBanners is done without errors")
 
 	// mongo
 	var bannerDatas []model.BannerData
@@ -153,6 +156,7 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 		}
 		bannerDatas = append(bannerDatas, bannerData)
 	}
+	log.Printf("GetMongoBannerData is done")
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bannerDatas)
@@ -207,6 +211,12 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 
 	dataId, err := database.UpgradePostgresBanner(id, &requestBody)
 	if err != nil {
+		var bannerExistErr *myerrors.BannerExist
+		if errors.As(err, &bannerExistErr) {
+			log.Printf("Ошибка при вставке данных в Postgres: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if strings.Contains(err.Error(), "no rows in result set") {
 			log.Printf("Не найдено строк с banner_id = %d", id)
 			http.Error(w, "Баннер не найден в Postgres при обновлении", http.StatusNotFound)
