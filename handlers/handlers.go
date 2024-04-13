@@ -61,7 +61,7 @@ func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// mongo
-	var bannerData model.BannerData
+	var bannerData model.MongoBannerData
 	err = database.GetMongoBannerData(&bannerData, &banner)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -123,7 +123,6 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	log.Printf("get all env vars")
 
 	banners, err := database.GetPostgresAllBanners(tagID, featureID, limit, offset)
 	log.Printf("GetPostgresAllBanners is done???")
@@ -137,12 +136,11 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("GetPostgresAllBanners is done without errors")
 
 	// mongo
-	var bannerDatas []model.BannerData
+	var bannerDatas []model.MongoBannerData
 	for _, banner := range banners {
-		var bannerData model.BannerData
+		var bannerData model.MongoBannerData
 		err = database.GetMongoBannerData(&bannerData, &banner)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
@@ -156,7 +154,10 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 		}
 		bannerDatas = append(bannerDatas, bannerData)
 	}
-	log.Printf("GetMongoBannerData is done")
+
+	if len(bannerDatas) == 0 {
+		http.Error(w, "Таких баннеров не найдено", http.StatusNotFound)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bannerDatas)
@@ -257,4 +258,6 @@ func DeleteBanner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

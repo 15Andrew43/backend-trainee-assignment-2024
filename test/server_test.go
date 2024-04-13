@@ -95,8 +95,7 @@ func TestE2E(t *testing.T) {
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ожидается статус код %d, получено %d ", http.StatusOK, resp.StatusCode)
 	}
-	///////////////////////////////////////////////////
-	var updatedBanner model.Banner
+	var updatedBanner model.MongoBannerData
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -107,6 +106,8 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("Ошибка при десериализации баннера из тела ответа: %v", err)
 	}
 
+	fmt.Printf("updatedBanner = %+v\n\n", updatedBanner)
+
 	var contentExpected map[string]interface{}
 
 	err = json.Unmarshal([]byte(banner2.Content), &contentExpected)
@@ -115,13 +116,10 @@ func TestE2E(t *testing.T) {
 		return
 	}
 
-	// fmt.Printf("contentExpected = %+v", contentExpected)
-	// fmt.Printf("updated = %v[%T], expected = %v[%T]", updatedBanner.Content, updatedBanner.Content, banner2.Content, banner2.Content)
 	if !reflect.DeepEqual(updatedBanner.Content, contentExpected) {
 		t.Fatalf("Содержимое обновленного баннера не соответствует ожидаемому")
 	}
 	resp.Body.Close()
-	///////////////////////////////////////////////////
 	fmt.Println("8. Проверка изменений баннера успешно завершена")
 
 	resp, err = client.GetBanners(baseURL, userToken, 1, 1)
@@ -131,12 +129,11 @@ func TestE2E(t *testing.T) {
 	resp.Body.Close()
 
 	// 9. Проверка изменений баннера
-	resp, err = client.GetBanners(baseURL, adminToken, 3, 1)
+	resp, err = client.GetBanners(baseURL, adminToken, 3, 3)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ожидается статус код %d, получено %d ", http.StatusOK, resp.StatusCode)
 	}
-	// /////////////////////////////////////////////////
-	var updatedBanners []model.Banner
+	var updatedBanners []model.MongoBannerData
 
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
@@ -150,7 +147,7 @@ func TestE2E(t *testing.T) {
 	if len(updatedBanners) > 0 {
 		var contentExpected map[string]interface{}
 
-		err = json.Unmarshal([]byte(banner2.Content), &contentExpected)
+		err = json.Unmarshal([]byte(banner3.Content), &contentExpected)
 		if err != nil {
 			t.Fatalf("Ошибка при разборе JSON из ожидаемого баннера: %v", err)
 		}
@@ -162,13 +159,12 @@ func TestE2E(t *testing.T) {
 		t.Fatalf("Не найдено обновленных баннеров")
 	}
 	resp.Body.Close()
-	// /////////////////////////////////////////////////
 	fmt.Println("9. Проверка изменений баннера успешно завершена")
 
 	// 10. Удаление баннера от пользователя с несовпадающим тегом
 	resp, err = client.DeleteBanner(baseURL, userToken, 1)
-	if err == nil || resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("Ожидается статус код %d и ошибка, получено %d без ошибки", http.StatusForbidden, resp.StatusCode)
+	if err != nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("Ожидается статус код %d, получено %d", http.StatusForbidden, resp.StatusCode)
 	}
 	fmt.Println("10. Удаление баннера от пользователя с несовпадающим тегом успешно обработано")
 
@@ -188,9 +184,9 @@ func TestE2E(t *testing.T) {
 	fmt.Println("11. Удаление оставшихся двух баннеров от админа успешно завершено")
 
 	// 12. Проверка отсутствия оставшихся баннеров
-	resp, err = client.GetBanners(baseURL, adminToken, 1, 1)
-	if err == nil || resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("Ожидается статус код %d и ошибка, получено %d без ошибки", http.StatusNotFound, resp.StatusCode)
+	resp, err = client.GetUserBanner(baseURL, adminToken, 1, 1)
+	if err != nil || resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("Ожидается статус код %d, получено %d", http.StatusNotFound, resp.StatusCode)
 	}
 	fmt.Println("12. Проверка отсутствия оставшихся баннеров успешно завершена")
 }

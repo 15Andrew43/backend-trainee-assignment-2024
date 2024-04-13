@@ -6,7 +6,12 @@ type PostgresBanner struct {
 	IsActive bool   `json:"is_active"`
 }
 
-type BannerData map[string]interface{}
+// type MongoBannerData map[string]interface{}
+type MongoBannerData struct {
+	_id     string
+	Id      int
+	Content map[string]interface{}
+}
 
 type Banner struct {
 	TagIds    []int                  `json:"tag_ids"`

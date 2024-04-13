@@ -24,7 +24,6 @@ func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error
 }
 
 func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.PostgresBanner, error) {
-	log.Printf("start selecting")
 	rows, err := PgConn.Query(context.Background(), `
 				SELECT DISTINCT b.id, b.data_id, b.is_active
 				FROM banners b
@@ -37,7 +36,6 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Postgre
 		return nil, err
 	}
 	defer rows.Close()
-	log.Print("end selecting")
 
 	var banners []model.PostgresBanner
 	for rows.Next() {
@@ -194,7 +192,7 @@ func DeletePostgresBanner(id int) (int, error) {
 	return dataId, nil
 }
 
-func GetMongoBannerData(bannerData *model.BannerData, banner *model.PostgresBanner) error {
+func GetMongoBannerData(bannerData *model.MongoBannerData, banner *model.PostgresBanner) error {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
