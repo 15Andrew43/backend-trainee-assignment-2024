@@ -20,7 +20,7 @@ func main() {
 	if err := database.ConnectToPostgres(&config.Cfg); err != nil {
 		log.Fatalf("Ошибка при кодключении к Postgres: %v", err)
 	}
-	defer database.PgConn.Close(context.Background())
+	defer database.PgPool.Close()
 
 	if err := database.ConnectToMongoDB(&config.Cfg); err != nil {
 		log.Fatalf("Ошибка при кодключении к Mongo: %v", err)

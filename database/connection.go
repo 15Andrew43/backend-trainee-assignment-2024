@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -12,18 +12,27 @@ import (
 )
 
 var (
-	PgConn   *pgx.Conn
+	PgPool   *pgxpool.Pool
 	MongoCli *mongo.Client
 )
 
 func ConnectToPostgres(cfg *config.Config) error {
-	pgConnString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s", cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB)
-	conn, err := pgx.Connect(context.Background(), pgConnString)
+
+	connURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?pool_max_conns=%d",
+		cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB, 30)
+
+	poolConfig, err := pgxpool.ParseConfig(connURL)
+	if err != nil {
+		return fmt.Errorf("ошибка парсинга строки подключения: %v", err)
+	}
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к Postgres: %v", err)
 	}
-	PgConn = conn
-	return PgConn.Ping(context.Background())
+
+	PgPool = pool
+	return PgPool.Ping(context.Background())
 }
 
 func ConnectToMongoDB(cfg *config.Config) error {

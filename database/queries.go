@@ -15,7 +15,7 @@ import (
 )
 
 func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error {
-	return PgConn.QueryRow(context.Background(), `
+	return PgPool.QueryRow(context.Background(), `
 				SELECT b.id, b.data_id, b.is_active
 				FROM banners b
 				INNER JOIN banner_tags bt ON b.id = bt.banner_id
@@ -24,7 +24,7 @@ func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error
 }
 
 func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.PostgresBanner, error) {
-	rows, err := PgConn.Query(context.Background(), `
+	rows, err := PgPool.Query(context.Background(), `
 				SELECT DISTINCT b.id, b.data_id, b.is_active
 				FROM banners b
 				INNER JOIN banner_tags bt ON b.id = bt.banner_id
@@ -64,7 +64,7 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 
 	nextId := util.GenerateNextId()
 	var insertedID int
-	err := PgConn.QueryRow(context.Background(), `
+	err := PgPool.QueryRow(context.Background(), `
 					INSERT INTO banners (feature_id, data_id, is_active)
 					VALUES ($1, $2, $3)
 					RETURNING id;
@@ -75,7 +75,7 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
 
 	for _, tag := range requestBody.TagIds {
-		_, err = PgConn.Exec(context.Background(), `
+		_, err = PgPool.Exec(context.Background(), `
 					INSERT INTO banner_tags (banner_id, tag_id)
 					VALUES ($1, $2);
 				`, insertedID, tag)
@@ -106,7 +106,7 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 	}
 
 	var dataIdStr string
-	err := PgConn.QueryRow(context.Background(), `
+	err := PgPool.QueryRow(context.Background(), `
 					SELECT data_id
 					FROM banners
 					WHERE id = $1
@@ -121,7 +121,7 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 		return 0, err
 	}
 
-	_, err = PgConn.Exec(context.Background(), `
+	_, err = PgPool.Exec(context.Background(), `
 					UPDATE banners
 					SET feature_id = $2, is_active = $3, updated_at = NOW()
 					WHERE id = $1;
@@ -131,7 +131,7 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 	}
 	log.Printf("Произведено обновление содержимого баннера в таблице banners")
 
-	_, err = PgConn.Exec(context.Background(), `
+	_, err = PgPool.Exec(context.Background(), `
 					DELETE FROM banner_tags
 					WHERE banner_id = $1;
 				`, id)
@@ -141,7 +141,7 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 	log.Printf("При обновлении удалены строки из таблицы banner_tags")
 
 	for _, tag := range requestBody.TagIds {
-		_, err = PgConn.Exec(context.Background(), `
+		_, err = PgPool.Exec(context.Background(), `
 			INSERT INTO banner_tags (banner_id, tag_id)
 			VALUES ($1, $2);
 		`, id, tag)
@@ -156,7 +156,7 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 
 func DeletePostgresBanner(id int) (int, error) {
 	var dataIdStr string
-	err := PgConn.QueryRow(context.Background(), `
+	err := PgPool.QueryRow(context.Background(), `
 					SELECT data_id
 					FROM banners
 					WHERE id = $1
@@ -171,7 +171,7 @@ func DeletePostgresBanner(id int) (int, error) {
 		return 0, err
 	}
 
-	_, err = PgConn.Exec(context.Background(), `
+	_, err = PgPool.Exec(context.Background(), `
 					DELETE FROM banner_tags
 					WHERE banner_id = $1
 				`, id)
@@ -180,7 +180,7 @@ func DeletePostgresBanner(id int) (int, error) {
 	}
 	log.Printf("Удалены строки из таблицы banner_tags для баннера %v", id)
 
-	_, err = PgConn.Exec(context.Background(), `
+	_, err = PgPool.Exec(context.Background(), `
 					DELETE FROM banners
 					WHERE id = $1
 				`, id)
