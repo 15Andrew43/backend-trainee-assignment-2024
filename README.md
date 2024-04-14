@@ -63,19 +63,22 @@
 - Для получения баннера для пользователя выполните GET запрос к `/user_banner` с указанием тега и фичи пользователя.
 
 
-`curl -X GET "http://localhost:8080/user_banner?tag_id=123&feature_id=456&use_last_revision=true" -H "token: NotAuthorizedUser"`
+`curl -X GET "http://localhost:8080/user_banner?tag_id=1&feature_id=1&use_last_revision=true" -H "token: AuthorizedUser"`
+
 - Для управления баннерами (создание, обновление, удаление) выполните соответствующие запросы к `/banner` с использованием админского токена.
 
 
 `curl -X POST "http://localhost:8080/banner" -H "token: Admin" -d '{"tag_ids":[1,2],"feature_id":1,"content":"{\"title\":\"New Banner\",\"text\":\"This is a new banner\",\"url\":\"https://example.com\"}","is_active":true}'`
 
 
-`curl -X PATCH "http://localhost:8080/banner/123" -H "token: Admin" -d '{"tag_ids":[1,2],"feature_id":1,"content":"{\"title\":\"Updated New Banner\",\"text\":\"Updated This is a new banner\",\"url\":\"https://Updated_example.com\"}","is_active":true}'`
+`curl -X PATCH "http://localhost:8080/banner/1" -H "token: Admin" -d '{"tag_ids":[1,2, 3],"feature_id":2,"content":"{\"title\":\"Updated New Banner\",\"text\":\"Updated This is a new banner\",\"url\":\"https://Updated_example.com\"}","is_active":true}'`
 
 
-`curl -X DELETE "http://localhost:8080/banner/123" -H "token: Admin"`
+`curl -X DELETE "http://localhost:8080/banner/1" -H "token: Admin"`
+
 - Для получения всех баннеров с фильтрацией по тегам и фичам выполните GET запрос к `/banner`.
-`curl -X GET "http://localhost:8080/banner?feature_id=456&tag_id=123&limit=10&offset=0" -H "token: Admin"`
+
+`curl -X GET "http://localhost:8080/banner?tag_id=1&feature_id=1&use_last_revision=true" -H "token: Admin"`
 
 
 ## Тестирование
@@ -90,6 +93,7 @@
 Результаты нагрузочного теститрвоания можно посмотреть в папке `.test/load_test`
 
 ## Дополнительная информация
-Для успешного выполенния bash-скриптов понядобится `mongosh`, `psql`
-Для успешного нагрузочного тестирования необходим `k6`
+Для успешного выполенния bash-скриптов понядобится `mongosh`, `psql`.
+
+Для успешного нагрузочного тестирования необходим `k6`.
 
