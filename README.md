@@ -41,3 +41,55 @@
 1. Код сервиса
 2. Makefile c командами сборки проекта / Описанная в README.md инструкция по запуску
 3. Описанные в README.md вопросы/проблемы, с которыми столкнулись,  и ваша логика их решений (если требуется)
+
+
+
+# Сервис баннеров
+
+## Описание
+Сервис баннеров предназначен для управления и отображения баннеров в зависимости от тегов пользователей и фичей. Баннеры представляют собой элементы пользовательского интерфейса в формате JSON.
+
+## Установка и запуск
+1. Убедитесь, что у вас установлены Docker и Docker Compose.
+2. Склонируйте репозиторий: `git clone https://github.com/15Andrew43/backend-trainee-assignment-2024.git`
+3. Перейдите в директорию проекта: `cd backend-trainee-assignment-2024`
+4. Запустите сервис: `make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh`
+5. Тут нужно создать какие-то теги чтобы все работало, 2 варианта
+ - `bash ./db_init_queries/insert_test_data.sh`
+ - `python3 ./db_init_queries/postgres/inserts.py n // здесь n - сколько фич и тэгов мы хотим создать`
+5. Сервис будет доступен по адресу `http://localhost:8080`
+
+## Использование
+- Для получения баннера для пользователя выполните GET запрос к `/user_banner` с указанием тега и фичи пользователя.
+
+
+`curl -X GET "http://localhost:8080/user_banner?tag_id=123&feature_id=456&use_last_revision=true" -H "token: NotAuthorizedUser"`
+- Для управления баннерами (создание, обновление, удаление) выполните соответствующие запросы к `/banner` с использованием админского токена.
+
+
+`curl -X POST "http://localhost:8080/banner" -H "token: Admin" -d '{"tag_ids":[1,2],"feature_id":1,"content":"{\"title\":\"New Banner\",\"text\":\"This is a new banner\",\"url\":\"https://example.com\"}","is_active":true}'`
+
+
+`curl -X PATCH "http://localhost:8080/banner/123" -H "token: Admin" -d '{"tag_ids":[1,2],"feature_id":1,"content":"{\"title\":\"Updated New Banner\",\"text\":\"Updated This is a new banner\",\"url\":\"https://Updated_example.com\"}","is_active":true}'`
+
+
+`curl -X DELETE "http://localhost:8080/banner/123" -H "token: Admin"`
+- Для получения всех баннеров с фильтрацией по тегам и фичам выполните GET запрос к `/banner`.
+`curl -X GET "http://localhost:8080/banner?feature_id=456&tag_id=123&limit=10&offset=0" -H "token: Admin"`
+
+
+## Тестирование
+- Для запуска E2E тестов выполните: `make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh && bash ./db_init_queries/insert_test_data.sh && go test -count=1 ./test/E2E_test`.
+- Для нагрузочного тестирования установите k6 и выполните соответствующие скрипты
+     - make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh && python3 ./db_init_queries/postgres/inserts.py 60000
+     - `k6 run ./test/load_test/create_banner.js`
+     - `k6 run ./test/load_test/get_banner.js`
+     - `k6 run ./test/load_test/update_banner.js`
+     - `k6 run ./test/load_test/delete_banner.js`
+
+Результаты нагрузочного теститрвоания можно посмотреть в папке `.test/load_test`
+
+## Дополнительная информация
+Для успешного выполенния bash-скриптов понядобится `mongosh`, `psql`
+Для успешного нагрузочного тестирования необходим `k6`
+
