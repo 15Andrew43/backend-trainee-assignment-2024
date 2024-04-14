@@ -22,7 +22,7 @@ var (
 func ConnectToPostgres(cfg *config.Config) error {
 
 	connURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?pool_max_conns=%d",
-		cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB, 20)
+		cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB, 30)
 
 	poolConfig, err := pgxpool.ParseConfig(connURL)
 	if err != nil {
@@ -41,7 +41,7 @@ func ConnectToPostgres(cfg *config.Config) error {
 func ConnectToMongoDB(cfg *config.Config) error {
 	clientOptions := options.Client().
 		ApplyURI(fmt.Sprintf("mongodb://%s:%d", cfg.MongoHost, cfg.MongoPort)).
-		SetMaxPoolSize(20)
+		SetMaxPoolSize(30)
 
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
@@ -55,7 +55,7 @@ func ConnectToMongoDB(cfg *config.Config) error {
 func ConnectToRedis(cfg *config.Config) error {
 	redisOptions := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
-		PoolSize: 20,
+		PoolSize: 30,
 	}
 
 	client := redis.NewClient(redisOptions)

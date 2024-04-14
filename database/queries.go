@@ -49,6 +49,23 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Postgre
 }
 
 func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner) {
+	tx, err := PgPool.Begin(context.Background())
+	if err != nil {
+		ch <- err
+		return
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback(context.Background())
+			panic(p)
+		} else if err != nil {
+			tx.Rollback(context.Background())
+		} else {
+			err = tx.Commit(context.Background())
+		}
+	}()
+
+	log.Println("AAAAAAAAAAAAA")
 
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
@@ -65,8 +82,10 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 		return
 	}
 
+	log.Println("BBBBBBBBBBBB")
+
 	var insertedID int
-	err := PgPool.QueryRow(context.Background(), `
+	err = tx.QueryRow(context.Background(), `
 					INSERT INTO banners (feature_id, data_id, is_active)
 					VALUES ($1, $2, $3)
 					RETURNING id;
@@ -77,8 +96,10 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 	}
 	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
 
+	log.Println("CCCCCCCCCCCC")
+
 	for _, tag := range requestBody.TagIds {
-		_, err = PgPool.Exec(context.Background(), `
+		_, err = tx.Exec(context.Background(), `
 					INSERT INTO banner_tags (banner_id, tag_id)
 					VALUES ($1, $2);
 				`, insertedID, tag)
@@ -93,6 +114,22 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 }
 
 func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody *model.Banner) {
+
+	tx, err := PgPool.Begin(context.Background())
+	if err != nil {
+		ch <- err
+		return
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback(context.Background())
+			panic(p)
+		} else if err != nil {
+			tx.Rollback(context.Background())
+		} else {
+			err = tx.Commit(context.Background())
+		}
+	}()
 
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
@@ -114,7 +151,7 @@ func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody
 	}
 
 	var dataIdStr string
-	err := PgPool.QueryRow(context.Background(), `
+	err = tx.QueryRow(context.Background(), `
 					SELECT data_id
 					FROM banners
 					WHERE id = $1
@@ -135,7 +172,7 @@ func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody
 	chData <- dataId
 	log.Printf("data_id передан по каналу")
 
-	_, err = PgPool.Exec(context.Background(), `
+	_, err = tx.Exec(context.Background(), `
 					UPDATE banners
 					SET feature_id = $2, is_active = $3
 					WHERE id = $1;
@@ -149,7 +186,7 @@ func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody
 	}
 	log.Printf("Произведено обновление содержимого баннера в таблице banners")
 
-	_, err = PgPool.Exec(context.Background(), `
+	_, err = tx.Exec(context.Background(), `
 					DELETE FROM banner_tags
 					WHERE banner_id = $1;
 				`, id)
@@ -160,7 +197,7 @@ func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody
 	log.Printf("При обновлении удалены строки из таблицы banner_tags")
 
 	for _, tag := range requestBody.TagIds {
-		_, err = PgPool.Exec(context.Background(), `
+		_, err = tx.Exec(context.Background(), `
 			INSERT INTO banner_tags (banner_id, tag_id)
 			VALUES ($1, $2);
 		`, id, tag)
@@ -248,6 +285,8 @@ func CreateMongoBanner(nextId int, ch chan<- error, content map[string]interface
 		ch <- err
 		return
 	}
+
+	log.Println("DDDDDDDDDDDDDDDDD")
 
 	ch <- nil
 }

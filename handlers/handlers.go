@@ -236,6 +236,10 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
+	log.Printf("have waited both goroutines")
+
+	// TODO
+	// if err -> rollback
 
 	err := <-errorPostgresChan
 	/////////////////POSTGRES//////////////////
@@ -250,6 +254,8 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
 		return
 	}
+
+	log.Print("after posgtres")
 
 	err = <-errorMongoChan
 	////////////////MONGO///////////
@@ -273,7 +279,6 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 
 	requestBody, ok := r.Context().Value("requestBody").(model.Banner)
 	if !ok {
-		log.Printf("heer is DEBUGGING")
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
 	}

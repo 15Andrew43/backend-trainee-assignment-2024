@@ -5,13 +5,13 @@ import http from 'k6/http';
 
 const host = "http://localhost:8080";
 
-let nTargets = 50
+let nTargets = 30
 
 
 
 export let options = {
     stages: [
-        { duration: '1s', target: nTargets },
+        { duration: '2s', target: nTargets },
     ],
 };
 
