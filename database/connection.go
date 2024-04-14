@@ -3,8 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -12,8 +14,9 @@ import (
 )
 
 var (
-	PgPool   *pgxpool.Pool
-	MongoCli *mongo.Client
+	PgPool      *pgxpool.Pool
+	MongoCli    *mongo.Client
+	RedisClient *redis.Client
 )
 
 func ConnectToPostgres(cfg *config.Config) error {
@@ -47,4 +50,24 @@ func ConnectToMongoDB(cfg *config.Config) error {
 
 	MongoCli = client
 	return MongoCli.Ping(context.Background(), nil)
+}
+
+func ConnectToRedis(cfg *config.Config) error {
+	redisOptions := &redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", cfg.RedisHost, cfg.RedisPort),
+		PoolSize: 20,
+	}
+
+	client := redis.NewClient(redisOptions)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := client.Ping(ctx).Result()
+	if err != nil {
+		return fmt.Errorf("ошибка подключения к Redis: %v", err)
+	}
+
+	RedisClient = client
+	return nil
 }

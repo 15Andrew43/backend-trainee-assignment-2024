@@ -27,6 +27,11 @@ func main() {
 	}
 	defer database.MongoCli.Disconnect(context.Background())
 
+	if err := database.ConnectToRedis(&config.Cfg); err != nil {
+		log.Fatalf("Ошибка при кодключении к Redis: %v", err)
+	}
+	defer database.RedisClient.Close()
+
 	r := mux.NewRouter()
 
 	r.Handle("/user_banner", handlers.UserBannerHandler).Methods("GET")

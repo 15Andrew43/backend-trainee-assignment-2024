@@ -51,7 +51,7 @@ func TestE2E(t *testing.T) {
 	fmt.Println("2. Добавление баннеров завершено")
 
 	// 3. Попытка получить баннер от имени пользователя с несовпадающим тегом+фичей
-	resp, err = client.GetUserBanner(baseURL, userToken, 2, 1)
+	resp, err = client.GetUserBanner(baseURL, userToken, 2, 1, true)
 	if err != nil || resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("Ожидается статус код %d, получено %d", http.StatusNotFound, resp.StatusCode)
 	}
@@ -59,7 +59,7 @@ func TestE2E(t *testing.T) {
 	fmt.Println("3. Попытка получить баннер от пользователя с несовпадающим тегом успешно обработана")
 
 	// 4. Получение баннера от имени пользователя с совпадающим тегом
-	resp, err = client.GetUserBanner(baseURL, userToken, 1, 1)
+	resp, err = client.GetUserBanner(baseURL, userToken, 1, 1, true)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ожидается статус код %d, получено %d ", http.StatusOK, resp.StatusCode)
 	}
@@ -67,7 +67,7 @@ func TestE2E(t *testing.T) {
 	fmt.Println("4. Получение баннера от пользователя с совпадающим тегом успешно завершено")
 
 	// 5. Получение баннера от имени админа
-	resp, err = client.GetUserBanner(baseURL, userToken, 1, 1)
+	resp, err = client.GetUserBanner(baseURL, userToken, 1, 1, true)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ожидается статус код %d, получено %d ", http.StatusOK, resp.StatusCode)
 	}
@@ -90,8 +90,10 @@ func TestE2E(t *testing.T) {
 	resp.Body.Close()
 	fmt.Println("7. Изменение баннера от пользователя с подходящим тегом успешно завершено")
 
+	// time.Sleep(6 * time.Second) // for checking that redis works ok
+
 	// 8. Проверка изменений баннера
-	resp, err = client.GetUserBanner(baseURL, userToken, 2, 2)
+	resp, err = client.GetUserBanner(baseURL, userToken, 2, 2, true)
 	if err != nil || resp.StatusCode != http.StatusOK {
 		t.Fatalf("Ожидается статус код %d, получено %d ", http.StatusOK, resp.StatusCode)
 	}
@@ -183,8 +185,10 @@ func TestE2E(t *testing.T) {
 	}
 	fmt.Println("11. Удаление оставшихся двух баннеров от админа успешно завершено")
 
+	// time.Sleep(6 * time.Second) // for checking that redis works ok
+
 	// 12. Проверка отсутствия оставшихся баннеров
-	resp, err = client.GetUserBanner(baseURL, adminToken, 1, 1)
+	resp, err = client.GetUserBanner(baseURL, adminToken, 1, 1, true)
 	if err != nil || resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("Ожидается статус код %d, получено %d", http.StatusNotFound, resp.StatusCode)
 	}

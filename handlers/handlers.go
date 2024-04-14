@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/middlewares"
@@ -22,7 +23,7 @@ import (
 var UserBannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	Query:  []string{"tag_id", "feature_id"},
 	Header: []string{"token"},
-})(http.HandlerFunc(GetUserBanner)))
+})(middlewares.CacheMiddleware(http.HandlerFunc(GetUserBanner))))
 
 var BannerHandler = middlewares.AuthMiddleware(middlewares.CheckParamsMiddleware(middlewares.Params{
 	Header: []string{"token"},
@@ -94,6 +95,8 @@ func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
 		return
 	}
+
+	middlewares.SaveToCache(r.URL.Path, bannerData, 5*time.Second)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bannerData)

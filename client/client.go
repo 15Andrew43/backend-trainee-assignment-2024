@@ -49,8 +49,8 @@ func GetBanners(url string, token string, tagID int, featureID int) (*http.Respo
 	return http.DefaultClient.Do(req)
 }
 
-func GetUserBanner(url string, token string, tagID int, featureID int) (*http.Response, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/user_banner?tag_id=%d&feature_id=%d", url, tagID, featureID), nil)
+func GetUserBanner(url string, token string, tagID int, featureID int, useLastRevision bool) (*http.Response, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/user_banner?tag_id=%d&feature_id=%d&use_last_revision=%v", url, tagID, featureID, useLastRevision), nil)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания запроса: %v", err)
 	}
