@@ -1,5 +1,3 @@
-
-
 import { fail } from 'k6';
 import http from 'k6/http';
 
@@ -18,10 +16,9 @@ for (let i = 0; i < nTargets; i++) {
 
 
 
-
 export let options = {
     stages: [
-        { duration: '3s', target: nTargets },
+        { duration: '10s', target: nTargets },
     ],
 };
 

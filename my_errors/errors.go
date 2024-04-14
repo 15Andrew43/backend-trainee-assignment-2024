@@ -10,3 +10,8 @@ type BannerExist struct {
 func (b BannerExist) Error() string {
 	return fmt.Sprintf("баннер с feature_id = %v и tag_id = %v уже существует", b.Feature_id, b.Tag_id)
 }
+
+type DataError struct {
+	DataID int
+	Err    error
+}

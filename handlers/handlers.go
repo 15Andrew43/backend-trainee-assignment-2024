@@ -49,8 +49,21 @@ func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 	tagID, _ := strconv.Atoi(r.URL.Query().Get("tag_id"))
 	featureID, _ := strconv.Atoi(r.URL.Query().Get("feature_id"))
 
+	errorPostgresChan := make(chan error, 1)
+
+	errorMongoChan := make(chan myerrors.DataError, 1)
+
+	wg := sync.WaitGroup{}
+
 	var banner model.PostgresBanner
-	err := database.GetPostgresBanner(tagID, featureID, &banner)
+	var bannerData model.MongoBannerData
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.GetPostgresBanner(tagID, featureID, errorPostgresChan, &banner)
+	}()
+
+	err := <-errorPostgresChan
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows in result set") {
 			log.Printf("Не найдено строк с tag_id = %d и feature_id = %d", tagID, featureID)
@@ -62,11 +75,17 @@ func GetUserBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// mongo
-	var bannerData model.MongoBannerData
-	err = database.GetMongoBannerData(&bannerData, &banner)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
+	wg.Add(1)
+	go func() {
+		wg.Done()
+		database.GetMongoBannerData(errorMongoChan, &bannerData, &banner)
+	}()
+
+	wg.Wait()
+
+	var dataErr myerrors.DataError = <-errorMongoChan
+	if dataErr.Err != nil {
+		if dataErr.Err == mongo.ErrNoDocuments {
 			log.Printf("Не найдено документов с data_id = %v", banner.DataID)
 			http.Error(w, "Баннер не найден в Mongo", http.StatusNotFound)
 			return
@@ -140,13 +159,36 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// mongo
-	var bannerDatas []model.MongoBannerData
-	for _, banner := range banners {
-		var bannerData model.MongoBannerData
-		err = database.GetMongoBannerData(&bannerData, &banner)
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				log.Printf("Не найдено документов с data_id = %v", banner.DataID)
+
+	var errorMongoChans []chan myerrors.DataError = make([]chan myerrors.DataError, len(banners))
+	for i := 0; i < len(banners); i++ {
+		errorMongoChans[i] = make(chan myerrors.DataError, 1)
+	}
+
+	wg := sync.WaitGroup{}
+
+	semaphore := make(chan struct{}, 20)
+
+	var bannerDatas []model.MongoBannerData = make([]model.MongoBannerData, len(banners))
+	for i, banner := range banners {
+		semaphore <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer func() {
+				wg.Done()
+				<-semaphore
+			}()
+			database.GetMongoBannerData(errorMongoChans[i], &bannerDatas[i], &banner)
+		}()
+	}
+
+	wg.Wait()
+
+	for _, ch := range errorMongoChans {
+		var err myerrors.DataError = <-ch
+		if err.Err != nil {
+			if err.Err == mongo.ErrNoDocuments {
+				log.Printf("Не найдено документов с data_id = %v", err.DataID)
 				http.Error(w, "Баннер не найден в Mongo", http.StatusNotFound)
 				return
 			}
@@ -154,7 +196,6 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
 			return
 		}
-		bannerDatas = append(bannerDatas, bannerData)
 	}
 
 	if len(bannerDatas) == 0 {
@@ -163,11 +204,6 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(bannerDatas)
-}
-
-type DataError struct {
-	DataID int
-	Err    error
 }
 
 func CreateBanner(w http.ResponseWriter, r *http.Request) {
@@ -239,7 +275,31 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataId, err := database.UpgradePostgresBanner(id, &requestBody)
+	errorPostgresChan := make(chan error, 1)
+
+	chanDataId := make(chan int, 1)
+
+	errorMongoChan := make(chan error, 1)
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.UpgradePostgresBanner(id, errorPostgresChan, chanDataId, &requestBody)
+	}()
+
+	dataId := <-chanDataId
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.UpgradeMongoBanner(dataId, errorMongoChan, requestBody.Content)
+	}()
+
+	wg.Wait()
+
+	err = <-errorPostgresChan
 	if err != nil {
 		var bannerExistErr *myerrors.BannerExist
 		if errors.As(err, &bannerExistErr) {
@@ -257,7 +317,7 @@ func UpdateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = database.UpgradeMongoBanner(dataId, requestBody.Content)
+	err = <-errorMongoChan
 	if err != nil {
 		log.Printf("Ошибка при обновлении данных в Mongo: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)
@@ -274,14 +334,42 @@ func DeleteBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dataId, err := database.DeletePostgresBanner(id)
-	if err != nil {
+	errorPostgresChan := make(chan myerrors.DataError, 1)
+
+	errorMongoChan := make(chan error, 1)
+
+	chanDataId := make(chan int, 1)
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.DeletePostgresBanner(id, chanDataId, errorPostgresChan)
+	}()
+
+	dataId := <-chanDataId
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.DeleteMongoBanner(dataId, errorMongoChan)
+	}()
+
+	wg.Wait()
+
+	var dataErr = <-errorPostgresChan
+	if dataErr.Err != nil {
+		if strings.Contains(dataErr.Err.Error(), "no rows in result set") {
+			log.Printf("Не найдено строк с id = %d", dataErr.DataID)
+			http.Error(w, "Строки с таким id не было", http.StatusBadRequest)
+			return
+		}
 		log.Printf("Ошибка при обновлении данных в Postgres: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Postgres", http.StatusInternalServerError)
 		return
 	}
-
-	err = database.DeleteMongoBanner(dataId)
+	err = <-errorMongoChan
 	if err != nil {
 		log.Printf("Ошибка при обновлении данных в Mongo: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)

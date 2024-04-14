@@ -13,13 +13,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func GetPostgresBanner(tagID, featureID int, banner *model.PostgresBanner) error {
-	return PgPool.QueryRow(context.Background(), `
+func GetPostgresBanner(tagID, featureID int, ch chan<- error, banner *model.PostgresBanner) {
+	err := PgPool.QueryRow(context.Background(), `
 				SELECT b.id, b.data_id, b.is_active
 				FROM banners b
 				INNER JOIN banner_tags bt ON b.id = bt.banner_id
 				WHERE b.feature_id = $1 AND bt.tag_id = $2
 			`, featureID, tagID).Scan(&banner.ID, &banner.DataID, &banner.IsActive)
+	ch <- err
 }
 
 func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.PostgresBanner, error) {
@@ -52,7 +53,9 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
 		var banner model.PostgresBanner
-		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
+		ch := make(chan error, 1)
+		GetPostgresBanner(tag, requestBody.FeatureId, ch, &banner)
+		err := <-ch
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				continue
@@ -89,12 +92,14 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 	ch <- nil
 }
 
-func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
+func UpgradePostgresBanner(id int, ch chan<- error, chData chan int, requestBody *model.Banner) {
 
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
 		var banner model.PostgresBanner
-		err := GetPostgresBanner(tag, requestBody.FeatureId, &banner)
+		errorPostgresChan := make(chan error, 1)
+		GetPostgresBanner(tag, requestBody.FeatureId, errorPostgresChan, &banner)
+		err := <-errorPostgresChan
 		if err != nil {
 			if strings.Contains(err.Error(), "no rows in result set") {
 				continue
@@ -103,7 +108,9 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 		if banner.ID == id {
 			continue
 		}
-		return 0, &my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+		chData <- -1
+		ch <- my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+		return
 	}
 
 	var dataIdStr string
@@ -113,22 +120,32 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 					WHERE id = $1
 				`, id).Scan(&dataIdStr)
 	if err != nil {
-		return 0, err
+		chData <- -1
+		ch <- err
+		return
 	}
 	log.Printf("Получен data_id обновляемого баннера %v", id)
 
 	dataId, err := strconv.Atoi(dataIdStr)
 	if err != nil {
-		return 0, err
+		chData <- -1
+		ch <- err
+		return
 	}
+	chData <- dataId
+	log.Printf("data_id передан по каналу")
 
 	_, err = PgPool.Exec(context.Background(), `
 					UPDATE banners
-					SET feature_id = $2, is_active = $3, updated_at = NOW()
+					SET feature_id = $2, is_active = $3
 					WHERE id = $1;
 				`, id, requestBody.FeatureId, requestBody.IsActive)
 	if err != nil {
-		return 0, err
+		ch <- err
+		log.Printf("Ошибка при обновлении таблицы banners!!!")
+		log.Printf("id = %v[%T], featureId = %v[%T], isActicve = %v[%T]", id, id, requestBody.FeatureId, requestBody.FeatureId, requestBody.IsActive, requestBody.IsActive)
+		log.Printf("err = %+v", err.Error())
+		return
 	}
 	log.Printf("Произведено обновление содержимого баннера в таблице banners")
 
@@ -137,7 +154,8 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 					WHERE banner_id = $1;
 				`, id)
 	if err != nil {
-		return 0, err
+		ch <- err
+		return
 	}
 	log.Printf("При обновлении удалены строки из таблицы banner_tags")
 
@@ -147,15 +165,16 @@ func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
 			VALUES ($1, $2);
 		`, id, tag)
 		if err != nil {
-			return 0, err
+			ch <- err
+			return
 		}
 	}
 	log.Printf("Вставлены новые строки в таблицу banner_tags")
 
-	return dataId, nil
+	ch <- err
 }
 
-func DeletePostgresBanner(id int) (int, error) {
+func DeletePostgresBanner(id int, chanDataId chan<- int, ch chan<- my_errors.DataError) {
 	var dataIdStr string
 	err := PgPool.QueryRow(context.Background(), `
 					SELECT data_id
@@ -163,21 +182,27 @@ func DeletePostgresBanner(id int) (int, error) {
 					WHERE id = $1
 				`, id).Scan(&dataIdStr)
 	if err != nil {
-		return 0, err
+		chanDataId <- -1
+		ch <- my_errors.DataError{Err: err, DataID: id}
+		return
 	}
 	log.Printf("Получен data_id обновляемого баннера %v", id)
 
 	dataId, err := strconv.Atoi(dataIdStr)
 	if err != nil {
-		return 0, err
+		chanDataId <- -1
+		ch <- my_errors.DataError{Err: err, DataID: id}
+		return
 	}
+	chanDataId <- dataId
 
 	_, err = PgPool.Exec(context.Background(), `
 					DELETE FROM banner_tags
 					WHERE banner_id = $1
 				`, id)
 	if err != nil {
-		return 0, err
+		ch <- my_errors.DataError{Err: err, DataID: id}
+		return
 	}
 	log.Printf("Удалены строки из таблицы banner_tags для баннера %v", id)
 
@@ -186,14 +211,15 @@ func DeletePostgresBanner(id int) (int, error) {
 					WHERE id = $1
 				`, id)
 	if err != nil {
-		return 0, err
+		ch <- my_errors.DataError{Err: err, DataID: id}
+		return
 	}
 	log.Printf("Удалена строка %v из таблицы banners", id)
 
-	return dataId, nil
+	ch <- my_errors.DataError{Err: err, DataID: id}
 }
 
-func GetMongoBannerData(bannerData *model.MongoBannerData, banner *model.PostgresBanner) error {
+func GetMongoBannerData(ch chan<- my_errors.DataError, bannerData *model.MongoBannerData, banner *model.PostgresBanner) {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
@@ -201,11 +227,13 @@ func GetMongoBannerData(bannerData *model.MongoBannerData, banner *model.Postgre
 	dataID, err := strconv.Atoi(banner.DataID)
 	if err != nil {
 		log.Printf("ошибка преобразования строки в число: %v", err)
-		return errors.New("can not convert str to int")
+		ch <- my_errors.DataError{Err: errors.New("can not convert str to int"), DataID: -1}
+		return
 	}
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	filter := bson.M{"id": dataID}
-	return collection.FindOne(context.Background(), filter).Decode(&bannerData)
+	err = collection.FindOne(context.Background(), filter).Decode(&bannerData)
+	ch <- my_errors.DataError{Err: err, DataID: dataID}
 }
 
 func CreateMongoBanner(nextId int, ch chan<- error, content map[string]interface{}) {
@@ -224,7 +252,7 @@ func CreateMongoBanner(nextId int, ch chan<- error, content map[string]interface
 	ch <- nil
 }
 
-func UpgradeMongoBanner(dataId int, content map[string]interface{}) error {
+func UpgradeMongoBanner(dataId int, ch chan<- error, content map[string]interface{}) {
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
 	filter := bson.M{"id": dataId}
@@ -236,13 +264,14 @@ func UpgradeMongoBanner(dataId int, content map[string]interface{}) error {
 		update,
 	)
 	if err != nil {
-		return err
+		ch <- err
+		return
 	}
 
-	return nil
+	ch <- nil
 }
 
-func DeleteMongoBanner(dataId int) error {
+func DeleteMongoBanner(dataId int, ch chan<- error) {
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
 	_, err := collection.DeleteOne(
@@ -250,8 +279,9 @@ func DeleteMongoBanner(dataId int) error {
 		bson.M{"id": dataId},
 	)
 	if err != nil {
-		return err
+		ch <- err
+		return
 	}
 
-	return nil
+	ch <- nil
 }

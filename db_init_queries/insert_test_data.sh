@@ -26,3 +26,5 @@ echo "CHECKIING MONGO"
 mongosh --host localhost --port $MONGO_PORT --eval 'const script = load("db_init_queries/mongo/check.js");'
 echo
 echo
+
+echo "FINIISHED inserting"
