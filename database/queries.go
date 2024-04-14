@@ -65,8 +65,6 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 		}
 	}()
 
-	log.Println("AAAAAAAAAAAAA")
-
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
 		var banner model.PostgresBanner
@@ -82,8 +80,6 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 		return
 	}
 
-	log.Println("BBBBBBBBBBBB")
-
 	var insertedID int
 	err = tx.QueryRow(context.Background(), `
 					INSERT INTO banners (feature_id, data_id, is_active)
@@ -95,8 +91,6 @@ func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner
 		return
 	}
 	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
-
-	log.Println("CCCCCCCCCCCC")
 
 	for _, tag := range requestBody.TagIds {
 		_, err = tx.Exec(context.Background(), `
@@ -285,8 +279,6 @@ func CreateMongoBanner(nextId int, ch chan<- error, content map[string]interface
 		ch <- err
 		return
 	}
-
-	log.Println("DDDDDDDDDDDDDDDDD")
 
 	ch <- nil
 }

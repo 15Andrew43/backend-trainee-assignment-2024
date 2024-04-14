@@ -236,7 +236,6 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	wg.Wait()
-	log.Printf("have waited both goroutines")
 
 	// TODO
 	// if err -> rollback
