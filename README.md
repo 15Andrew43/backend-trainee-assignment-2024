@@ -56,8 +56,10 @@
 4. Запустите сервис: `make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh`
 5. Тут нужно создать какие-то теги чтобы все работало, 2 варианта
  - `bash ./db_init_queries/insert_test_data.sh`
- - `python3 ./db_init_queries/postgres/inserts.py n // здесь n - сколько фич и тэгов мы хотим создать`
-5. Сервис будет доступен по адресу `http://localhost:8080`
+ - `python3 ./db_init_queries/postgres/inserts.py n`
+     - здесь n - сколько фич и тэгов мы хотим создать
+
+Сервис будет доступен по адресу `http://localhost:8080`
 
 ## Использование
 - Для получения баннера для пользователя выполните GET запрос к `/user_banner` с указанием тега и фичи пользователя.
@@ -80,11 +82,13 @@
 
 `curl -X GET "http://localhost:8080/banner?tag_id=1&feature_id=1&use_last_revision=true" -H "token: Admin"`
 
+`curl -X GET "http://localhost:8080/banner?tag_id=1&use_last_revision=true" -H "token: Admin"`
+
 
 ## Тестирование
 - Для запуска E2E тестов выполните: `make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh && bash ./db_init_queries/insert_test_data.sh && go test -count=1 ./test/E2E_test`.
 - Для нагрузочного тестирования установите k6 и выполните соответствующие скрипты
-     - make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh && python3 ./db_init_queries/postgres/inserts.py 60000
+     - `make stop && make && sleep 3 && bash ./db_init_queries/create_tables.sh && python3 ./db_init_queries/postgres/inserts.py 60000`
      - `k6 run ./test/load_test/create_banner.js`
      - `k6 run ./test/load_test/get_banner.js`
      - `k6 run ./test/load_test/update_banner.js`
@@ -93,7 +97,8 @@
 Результаты нагрузочного теститрвоания можно посмотреть в папке `.test/load_test`
 
 ## Дополнительная информация
-Для успешного выполенния bash-скриптов понядобится `mongosh`, `psql`.
+Для успешного выполенния bash-скриптов понадобятся `mongosh`, `psql`.
 
 Для успешного нагрузочного тестирования необходим `k6`.
 
+`docker logs my-go-server` - для просмотра логов
