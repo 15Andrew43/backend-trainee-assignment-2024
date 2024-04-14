@@ -10,7 +10,6 @@ import (
 	"github.com/15Andrew43/backend-trainee-assignment-2024/config"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
 	my_errors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
-	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -48,7 +47,7 @@ func GetPostgresAllBanners(tagID, featureID, limit, offset int) ([]model.Postgre
 	return banners, nil
 }
 
-func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
+func CreatePostgresBanner(nextId int, ch chan<- error, requestBody *model.Banner) {
 
 	// check that banners with such feature + tag do not exist
 	for _, tag := range requestBody.TagIds {
@@ -59,10 +58,10 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 				continue
 			}
 		}
-		return 0, &my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+		ch <- my_errors.BannerExist{Feature_id: requestBody.FeatureId, Tag_id: tag}
+		return
 	}
 
-	nextId := util.GenerateNextId()
 	var insertedID int
 	err := PgPool.QueryRow(context.Background(), `
 					INSERT INTO banners (feature_id, data_id, is_active)
@@ -70,7 +69,8 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 					RETURNING id;
 				`, requestBody.FeatureId, strconv.Itoa(nextId), requestBody.IsActive).Scan(&insertedID)
 	if err != nil {
-		return 0, err
+		ch <- err
+		return
 	}
 	log.Printf("Вставлена новая строка %v в таблицу banners", insertedID)
 
@@ -80,12 +80,13 @@ func CreatePostgresBanner(requestBody *model.Banner) (int, error) {
 					VALUES ($1, $2);
 				`, insertedID, tag)
 		if err != nil {
-			return 0, err
+			ch <- err
+			return
 		}
 	}
 	log.Printf("Вставлены новые строки в таблицу banner_tags")
 
-	return nextId, nil
+	ch <- nil
 }
 
 func UpgradePostgresBanner(id int, requestBody *model.Banner) (int, error) {
@@ -207,7 +208,7 @@ func GetMongoBannerData(bannerData *model.MongoBannerData, banner *model.Postgre
 	return collection.FindOne(context.Background(), filter).Decode(&bannerData)
 }
 
-func CreateMongoBanner(nextId int, content map[string]interface{}) error {
+func CreateMongoBanner(nextId int, ch chan<- error, content map[string]interface{}) {
 
 	collection := MongoCli.Database(config.Cfg.MongoDB).Collection(config.Cfg.MongoCollection)
 
@@ -216,10 +217,11 @@ func CreateMongoBanner(nextId int, content map[string]interface{}) error {
 		"content": content,
 	})
 	if err != nil {
-		return err
+		ch <- err
+		return
 	}
 
-	return nil
+	ch <- nil
 }
 
 func UpgradeMongoBanner(dataId int, content map[string]interface{}) error {

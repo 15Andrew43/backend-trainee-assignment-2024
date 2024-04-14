@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/15Andrew43/backend-trainee-assignment-2024/database"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/middlewares"
 	"github.com/15Andrew43/backend-trainee-assignment-2024/model"
 	myerrors "github.com/15Andrew43/backend-trainee-assignment-2024/my_errors"
+	"github.com/15Andrew43/backend-trainee-assignment-2024/util"
 	"github.com/gorilla/mux"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -163,6 +165,11 @@ func GetAllBanners(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(bannerDatas)
 }
 
+type DataError struct {
+	DataID int
+	Err    error
+}
+
 func CreateBanner(w http.ResponseWriter, r *http.Request) {
 
 	requestBody, ok := r.Context().Value("requestBody").(model.Banner)
@@ -170,8 +177,29 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
 	}
+	nextId := util.GenerateNextId()
 
-	nextId, err := database.CreatePostgresBanner(&requestBody)
+	errorPostgresChan := make(chan error, 1)
+
+	errorMongoChan := make(chan error, 1)
+
+	wg := sync.WaitGroup{}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.CreatePostgresBanner(nextId, errorPostgresChan, &requestBody)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		database.CreateMongoBanner(nextId, errorMongoChan, requestBody.Content)
+	}()
+
+	wg.Wait()
+
+	err := <-errorPostgresChan
+	/////////////////POSTGRES//////////////////
 	if err != nil {
 		var bannerExistErr *myerrors.BannerExist
 		if errors.As(err, &bannerExistErr) {
@@ -184,7 +212,8 @@ func CreateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = database.CreateMongoBanner(nextId, requestBody.Content)
+	err = <-errorMongoChan
+	////////////////MONGO///////////
 	if err != nil {
 		log.Printf("Ошибка при вставке данных в Mongo: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера при запросе к Mongo", http.StatusInternalServerError)

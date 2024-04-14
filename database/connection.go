@@ -19,7 +19,7 @@ var (
 func ConnectToPostgres(cfg *config.Config) error {
 
 	connURL := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?pool_max_conns=%d",
-		cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB, 30)
+		cfg.PGUser, cfg.PGPassword, cfg.PGHost, cfg.PGPort, cfg.PGDB, 20)
 
 	poolConfig, err := pgxpool.ParseConfig(connURL)
 	if err != nil {
@@ -36,11 +36,15 @@ func ConnectToPostgres(cfg *config.Config) error {
 }
 
 func ConnectToMongoDB(cfg *config.Config) error {
-	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%d", cfg.MongoHost, cfg.MongoPort))
+	clientOptions := options.Client().
+		ApplyURI(fmt.Sprintf("mongodb://%s:%d", cfg.MongoHost, cfg.MongoPort)).
+		SetMaxPoolSize(20)
+
 	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		return fmt.Errorf("ошибка подключения к MongoDB: %v", err)
 	}
+
 	MongoCli = client
 	return MongoCli.Ping(context.Background(), nil)
 }
